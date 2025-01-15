@@ -82,7 +82,7 @@ services:
       # Pass the original Host header to the container
       - "traefik.http.services.seafile.loadbalancer.passhostheader=true"
       # Apply middlewares for security headers and compression
-      - "traefik.http.routers.seafile.middlewares=sec-headers@docker,compresstraefik@docker"
+      - "traefik.http.routers.seafile.middlewares=sec-headers,compresstraefik"
       # Match incoming requests on the specific hostname for Seafdav
       - "traefik.http.routers.seafile-dav.rule=Host(`${SEAFILE_HOSTNAME}`) && PathPrefix(`/seafdav`)"
       # Assign the router to a named Traefik service
@@ -98,7 +98,7 @@ services:
       # Pass the original Host header to the container
       - "traefik.http.services.seafile-dav.loadbalancer.passhostheader=true"
       # Apply compression middleware
-      - "traefik.http.routers.seafile-dav.middlewares=compresstraefik@docker"
+      - "traefik.http.routers.seafile-dav.middlewares=compresstraefik"
       # Match incoming requests on the specific hostname for Seafhttp
       - "traefik.http.routers.seafile-http.rule=Host(`${SEAFILE_HOSTNAME}`) && PathPrefix(`/seafhttp`)"
       # Assign the router to a named Traefik service
@@ -115,7 +115,7 @@ services:
       - "traefik.http.services.seafile-http.loadbalancer.passhostheader=true"
       # Apply middlewares for stripping prefix and compression
       - "traefik.http.middlewares.seafile-strip.stripprefix.prefixes=/seafhttp"
-      - "traefik.http.routers.seafile-http.middlewares=seafile-strip@docker,compresstraefik@docker"
+      - "traefik.http.routers.seafile-http.middlewares=seafile-strip,compresstraefik"
       # Security headers settings
       - "traefik.http.middlewares.sec-headers.headers.sslredirect=true"
       - "traefik.http.middlewares.sec-headers.headers.browserXssFilter=true"
