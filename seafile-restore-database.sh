@@ -6,7 +6,7 @@
 SEAFILE_CONTAINER=$(docker ps -aqf "name=seafile-seafile")
 SEAFILE_BACKUPS_CONTAINER=$(docker ps -aqf "name=seafile-backups")
 SEAFILE_DB_USER="root"
-MARIADB_PASSWORD=$(docker exec $SEAFILE_BACKUPS_CONTAINER printenv MARIADB_ROOT_PASSWORD)
+MARIADB_PASSWORD=$(docker exec "$SEAFILE_BACKUPS_CONTAINER" printenv MARIADB_ROOT_PASSWORD)
 BACKUP_PATH="/srv/seafile-mariadb/backups/"
 
 echo "--> All available database backups:"
@@ -22,7 +22,7 @@ echo "--> Copy and paste the backup name from the list above to restore all data
 echo "--> Example: seafile-mariadb-backup-YYYY-MM-DD_hh-mm.gz"
 echo -n "--> "
 
-read SELECTED_DATABASE_BACKUP
+read -r SELECTED_DATABASE_BACKUP
 
 # Remove any surrounding quotes from the selected backup name
 SELECTED_DATABASE_BACKUP=$(echo "$SELECTED_DATABASE_BACKUP" | tr -d "'\"")

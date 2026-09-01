@@ -1,3 +1,16 @@
+# Image pins live HERE, as interpolation defaults, so `git pull` (or
+# re-downloading this file) delivers the exact version combination this
+# repository has tested — no .env editing required. Setting the matching
+# variable in .env overrides the default for anyone who wants to pin
+# differently; .env itself carries only secrets and deliberate overrides.
+# CI (Trivy scans, check-pin-freshness, the ephemeral test .env) reads
+# the pins from these lines — this block is the single source of truth.
+x-images:
+  traefik: &traefik-image ${TRAEFIK_IMAGE_TAG:-traefik:3.7@sha256:9c2a54d87f76f5c2f5f2682c68394af92fb12c0a2686798d6462a3f84bd78eaf}
+  mariadb: &mariadb-image ${SEAFILE_MARIADB_IMAGE_TAG:-mariadb:11.4@sha256:611a2fcc5fa7c6ceb8644c6f74b25ede004ff6c3a6b38c8f8c23d3bbf6c26430}
+  redis: &redis-image ${SEAFILE_REDIS_IMAGE_TAG:-redis:7.4@sha256:71da9275c5f3fcb97d0fa0c8c5b36cc995327265420f17a04bfd544f458059f7}
+  seafile: &seafile-image ${SEAFILE_IMAGE_TAG:-seafileltd/seafile-mc:13.0.25@sha256:90c1aaa08731116750cd7ce16cbc6afe0c26006433002d3c7215a5f4254ec244}
+
 networks:
   seafile-network:
     external: true
@@ -6,6 +19,7 @@ networks:
 
 volumes:
   mariadb-data:
+  redis-data:
   seafile-data:
   seafile-mariadb-backup:
   seafile-data-backups:
@@ -14,13 +28,13 @@ volumes:
 
 services:
   mariadb:
-    image: ${SEAFILE_MARIADB_IMAGE_TAG}
+    image: *mariadb-image
     volumes:
       - mariadb-data:/var/lib/mysql
     environment:
-      MARIADB_USER: ${SEAFILE_DB_USER}
-      MARIADB_PASSWORD: ${SEAFILE_DB_PASSWORD}
-      MARIADB_ROOT_PASSWORD: ${SEAFILE_DB_ADMIN_PASSWORD}
+      MARIADB_USER: ${SEAFILE_DB_USER:-seafiledbuser}
+      MARIADB_PASSWORD: ${SEAFILE_DB_PASSWORD:?set in .env - see .env.example for generation command}
+      MARIADB_ROOT_PASSWORD: ${SEAFILE_DB_ADMIN_PASSWORD:?set in .env - see .env.example for generation command}
     networks:
       - seafile-network
     healthcheck:
@@ -31,33 +45,54 @@ services:
       start_period: 60s
     restart: unless-stopped
 
-  memcached:
-    command: memcached -m 256M
-    image: ${SEAFILE_MEMCACHE_IMAGE_TAG}
+  redis:
+    # Seafile 13 moved its cache from memcached to Redis.
+    image: *redis-image
+    volumes:
+      - redis-data:/data
     networks:
       - seafile-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
 
   seafile:
-    image: ${SEAFILE_IMAGE_TAG}
+    image: *seafile-image
     volumes:
-      - seafile-data:${DATA_PATH}
+      - seafile-data:${DATA_PATH:-/shared}
+    # Seafile 12+ changed the container's environment contract: the
+    # MYSQL_*/SEAFILE_ADMIN-style variables from Seafile 11 are dead, the
+    # cache moved to Redis, and JWT_PRIVATE_KEY is required.
     environment:
-      MYSQL_SERVER: mariadb
-      MYSQL_USER: ${SEAFILE_DB_USER}
-      MYSQL_USER_PASSWORD: ${SEAFILE_DB_PASSWORD}
-      MYSQL_PORT: 3306
-      SEAFILE_NAME: ${SEAFILE_SITE_NAME}
-      SEAFILE_ADDRESS: ${SEAFILE_HOSTNAME}
-      SEAFILE_ADMIN: ${SEAFILE_ADMIN_USERNAME}
-      SEAFILE_ADMIN_PW: ${SEAFILE_ADMIN_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${SEAFILE_DB_ADMIN_PASSWORD}
-      TIME_ZONE: ${SEAFILE_TIMEZONE}
+      SEAFILE_MYSQL_DB_HOST: mariadb
+      SEAFILE_MYSQL_DB_PORT: 3306
+      SEAFILE_MYSQL_DB_USER: ${SEAFILE_DB_USER:-seafiledbuser}
+      SEAFILE_MYSQL_DB_PASSWORD: ${SEAFILE_DB_PASSWORD}
+      SEAFILE_MYSQL_DB_CCNET_DB_NAME: ccnet_db
+      SEAFILE_MYSQL_DB_SEAFILE_DB_NAME: seafile_db
+      SEAFILE_MYSQL_DB_SEAHUB_DB_NAME: seahub_db
+      INIT_SEAFILE_MYSQL_ROOT_PASSWORD: ${SEAFILE_DB_ADMIN_PASSWORD}
+      SEAFILE_SERVER_HOSTNAME: ${SEAFILE_HOSTNAME:?set in .env - see .env.example}
+      SEAFILE_SERVER_PROTOCOL: https
+      INIT_SEAFILE_ADMIN_EMAIL: ${SEAFILE_ADMIN_USERNAME:?set in .env - see .env.example}
+      INIT_SEAFILE_ADMIN_PASSWORD: ${SEAFILE_ADMIN_PASSWORD:?set in .env - see .env.example for generation command}
+      JWT_PRIVATE_KEY: ${SEAFILE_JWT_PRIVATE_KEY:?set in .env - see .env.example for generation command}
+      CACHE_PROVIDER: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      TIME_ZONE: ${SEAFILE_TIMEZONE:-America/New_York}
     networks:
       - seafile-network
       - traefik-network
+    # Port 80 is the container's bundled nginx: Seafile 13 binds seahub to
+    # localhost only, so Traefik must target nginx, which also serves the
+    # /seafhttp and /seafdav paths.
     healthcheck:
-      test: timeout 10s bash -c ':> /dev/tcp/127.0.0.1/8000' || exit 1
+      test: timeout 10s bash -c ':> /dev/tcp/127.0.0.1/80' || exit 1
       interval: 10s
       timeout: 5s
       retries: 3
@@ -74,7 +109,7 @@ services:
       # Use the 'websecure' (HTTPS) entry point
       - "traefik.http.routers.seafile.entrypoints=websecure"
       # Define the internal container port for routing
-      - "traefik.http.services.seafile.loadbalancer.server.port=8000"
+      - "traefik.http.services.seafile.loadbalancer.server.port=80"
       # Enable TLS on this router
       - "traefik.http.routers.seafile.tls=true"
       # Use Let's Encrypt for certificate management
@@ -90,7 +125,7 @@ services:
       # Use the 'websecure' (HTTPS) entry point
       - "traefik.http.routers.seafile-dav.entrypoints=websecure"
       # Define the internal container port for routing
-      - "traefik.http.services.seafile-dav.loadbalancer.server.port=8080"
+      - "traefik.http.services.seafile-dav.loadbalancer.server.port=80"
       # Enable TLS on this router
       - "traefik.http.routers.seafile-dav.tls=true"
       # Use Let's Encrypt for certificate management
@@ -106,16 +141,16 @@ services:
       # Use the 'websecure' (HTTPS) entry point
       - "traefik.http.routers.seafile-http.entrypoints=websecure"
       # Define the internal container port for routing
-      - "traefik.http.services.seafile-http.loadbalancer.server.port=8082"
+      - "traefik.http.services.seafile-http.loadbalancer.server.port=80"
       # Enable TLS on this router
       - "traefik.http.routers.seafile-http.tls=true"
       # Use Let's Encrypt for certificate management
       - "traefik.http.routers.seafile-http.tls.certresolver=letsencrypt"
       # Pass the original Host header to the container
       - "traefik.http.services.seafile-http.loadbalancer.passhostheader=true"
-      # Apply middlewares for stripping prefix and compression
-      - "traefik.http.middlewares.seafile-strip.stripprefix.prefixes=/seafhttp"
-      - "traefik.http.routers.seafile-http.middlewares=seafile-strip,compresstraefik"
+      # No prefix stripping: the container's bundled nginx expects the
+      # /seafhttp path and proxies it to the file server itself.
+      - "traefik.http.routers.seafile-http.middlewares=compresstraefik"
       # Security headers settings
       - "traefik.http.middlewares.sec-headers.headers.sslredirect=true"
       - "traefik.http.middlewares.sec-headers.headers.browserXssFilter=true"
@@ -131,14 +166,16 @@ services:
     depends_on:
       mariadb:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       traefik:
         condition: service_healthy
 
   traefik:
-    image: ${TRAEFIK_IMAGE_TAG}
+    image: *traefik-image
     command:
       # Set the log level (DEBUG, INFO, WARN, ERROR)
-      - "--log.level=${TRAEFIK_LOG_LEVEL}"
+      - "--log.level=${TRAEFIK_LOG_LEVEL:-WARN}"
       # Enable the built-in API and web-based dashboard
       - "--api.dashboard=true"
       # Enable the /ping endpoint so we can health-check Traefik
@@ -163,7 +200,7 @@ services:
       # Use ACME (Let's Encrypt) to generate/renew certificates via TLS challenge
       - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
       # The email address used by Let's Encrypt for renewal notices
-      - "--certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL:?set in .env - see .env.example}"
       # The file where ACME certificates are stored inside the container
       - "--certificatesresolvers.letsencrypt.acme.storage=/etc/traefik/acme/acme.json"
       # Enable Prometheus metrics
@@ -192,14 +229,14 @@ services:
       # Enable Traefik for this container
       - "traefik.enable=true"
       # A router to expose the Traefik dashboard
-      - "traefik.http.routers.dashboard.rule=Host(`${TRAEFIK_HOSTNAME}`)"
+      - "traefik.http.routers.dashboard.rule=Host(`${TRAEFIK_HOSTNAME:?set in .env - see .env.example}`)"
       - "traefik.http.routers.dashboard.entrypoints=websecure"
       - "traefik.http.routers.dashboard.tls=true"
       - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
       - "traefik.http.routers.dashboard.service=api@internal"
       # Basic Authentication for the Traefik dashboard
       - "traefik.http.routers.dashboard.middlewares=authtraefik"
-      - "traefik.http.middlewares.authtraefik.basicauth.users=${TRAEFIK_BASIC_AUTH}"
+      - "traefik.http.middlewares.authtraefik.basicauth.users=${TRAEFIK_BASIC_AUTH:?set in .env - see .env.example for htpasswd generation}"
       # Specify the internal server port to the dashboard service
       - "traefik.http.services.dashboard.loadbalancer.server.port=8080"
       # Pass the original Host header to the backend
@@ -207,33 +244,38 @@ services:
     restart: unless-stopped
 
   backups:
-    image: ${SEAFILE_MARIADB_IMAGE_TAG}
+    image: *mariadb-image
+    # `$$VAR` / `$$(...)` escapes are required so docker compose does NOT
+    # interpolate these at config time — they are resolved by the container
+    # shell at runtime from the `environment:` block below. The dump names
+    # Seafile's three databases explicitly: `--all-databases` as the
+    # non-root seafile user fails on the mysql system schema.
     command: >-
-      sh -c 'sleep $BACKUP_INIT_SLEEP &&
+      sh -c 'sleep "$$BACKUP_INIT_SLEEP" &&
       while true; do
-        mariadb-dump -h mariadb -u $SEAFILE_DB_USER -p"$SEAFILE_DB_PASSWORD" --all-databases | gzip > "$MARIADB_BACKUPS_PATH/$MARIADB_BACKUP_NAME-$(date '+%Y-%m-%d_%H-%M').gz" &&
-        tar -zcpf $DATA_BACKUPS_PATH/$DATA_BACKUP_NAME-$(date "+%Y-%m-%d_%H-%M").tar.gz $DATA_PATH &&
-        find $MARIADB_BACKUPS_PATH -type f -mtime +$MARIADB_BACKUP_PRUNE_DAYS | xargs rm -f &&
-        find $DATA_BACKUPS_PATH -type f -mtime +$DATA_BACKUP_PRUNE_DAYS | xargs rm -f;
-        sleep $BACKUP_INTERVAL; done'
+        mariadb-dump -h mariadb -u "$$SEAFILE_DB_USER" -p"$$SEAFILE_DB_PASSWORD" --databases ccnet_db seafile_db seahub_db | gzip > "$$MARIADB_BACKUPS_PATH/$$MARIADB_BACKUP_NAME-$$(date "+%Y-%m-%d_%H-%M").gz" &&
+        tar -zcpf "$$DATA_BACKUPS_PATH/$$DATA_BACKUP_NAME-$$(date "+%Y-%m-%d_%H-%M").tar.gz" "$$DATA_PATH" &&
+        find "$$MARIADB_BACKUPS_PATH" -type f -mtime "+$$MARIADB_BACKUP_PRUNE_DAYS" | xargs rm -f &&
+        find "$$DATA_BACKUPS_PATH" -type f -mtime "+$$DATA_BACKUP_PRUNE_DAYS" | xargs rm -f;
+        sleep "$$BACKUP_INTERVAL"; done'
     volumes:
       - seafile-mariadb-backup:/var/lib/mysql
-      - seafile-data:${DATA_PATH}
-      - seafile-data-backups:${DATA_BACKUPS_PATH}
-      - seafile-database-backups:${MARIADB_BACKUPS_PATH}
+      - seafile-data:${DATA_PATH:-/shared}
+      - seafile-data-backups:${DATA_BACKUPS_PATH:-/srv/seafile-application-data/backups}
+      - seafile-database-backups:${MARIADB_BACKUPS_PATH:-/srv/seafile-mariadb/backups}
     environment:
-      SEAFILE_DB_USER: ${SEAFILE_DB_USER}
+      SEAFILE_DB_USER: ${SEAFILE_DB_USER:-seafiledbuser}
       SEAFILE_DB_PASSWORD: ${SEAFILE_DB_PASSWORD}
-      MARIADB_ROOT_PASSWORD: ${SEAFILE_DB_ADMIN_PASSWORD}
-      BACKUP_INIT_SLEEP: ${BACKUP_INIT_SLEEP}
-      BACKUP_INTERVAL: ${BACKUP_INTERVAL}
-      MARIADB_BACKUP_PRUNE_DAYS: ${MARIADB_BACKUP_PRUNE_DAYS}
-      DATA_BACKUP_PRUNE_DAYS: ${DATA_BACKUP_PRUNE_DAYS}
-      MARIADB_BACKUPS_PATH: ${MARIADB_BACKUPS_PATH}
-      DATA_BACKUPS_PATH: ${DATA_BACKUPS_PATH}
-      DATA_PATH: ${DATA_PATH}
-      MARIADB_BACKUP_NAME: ${MARIADB_BACKUP_NAME}
-      DATA_BACKUP_NAME: ${DATA_BACKUP_NAME}
+      MARIADB_ROOT_PASSWORD: ${SEAFILE_DB_ADMIN_PASSWORD:?set in .env - see .env.example for generation command}
+      BACKUP_INIT_SLEEP: ${BACKUP_INIT_SLEEP:-30m}
+      BACKUP_INTERVAL: ${BACKUP_INTERVAL:-24h}
+      MARIADB_BACKUP_PRUNE_DAYS: ${MARIADB_BACKUP_PRUNE_DAYS:-7}
+      DATA_BACKUP_PRUNE_DAYS: ${DATA_BACKUP_PRUNE_DAYS:-7}
+      MARIADB_BACKUPS_PATH: ${MARIADB_BACKUPS_PATH:-/srv/seafile-mariadb/backups}
+      DATA_BACKUPS_PATH: ${DATA_BACKUPS_PATH:-/srv/seafile-application-data/backups}
+      DATA_PATH: ${DATA_PATH:-/shared}
+      MARIADB_BACKUP_NAME: ${MARIADB_BACKUP_NAME:-seafile-mariadb-backup}
+      DATA_BACKUP_NAME: ${DATA_BACKUP_NAME:-seafile-application-data-backup}
     networks:
       - seafile-network
     restart: unless-stopped

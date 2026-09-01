@@ -1,184 +1,84 @@
-# Seafile with Let's Encrypt Using Docker Compose
+# Seafile + Traefik + Let's Encrypt — Docker Compose
 
-[![Deployment Verification](https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/actions/workflows/00-deployment-verification.yml/badge.svg)](https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/actions)
+[![Deployment Verification](https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/actions/workflows/deployment-verification.yml/badge.svg?branch=main)](https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/actions/workflows/deployment-verification.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-The badge displayed on my repository indicates the status of the deployment verification workflow as executed on the latest commit to the main branch.
+This repository deploys **Seafile Community Edition 13** — fast, reliable file sync and share — behind **Traefik** with automatic **Let's Encrypt TLS**, backed by **MariaDB 11.4 LTS** and **Redis**, with scheduled **backups** (all three Seafile databases + file data) and companion **restore scripts**.
 
-**Passing**: This means the most recent commit has successfully passed all deployment checks, confirming that the Docker Compose setup functions correctly as designed.
+## Getting started
 
-📙 The complete installation guide is available on my [website](https://www.heyvaldemar.com/install-seafile-using-docker-compose/).
+```bash
+# 1. Clone
+git clone https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose
+cd seafile-traefik-letsencrypt-docker-compose
 
-❗ Change variables in the `.env` to meet your requirements.
+# 2. Create the two Docker networks the stack expects
+docker network create traefik-network
+docker network create seafile-network
 
-💡 Note that the `.env` file should be in the same directory as `seafile-traefik-letsencrypt-docker-compose.yml`.
+# 3. Copy the environment template and fill in required values
+cp .env.example .env
+$EDITOR .env
+# ^ Required: admin email + password, two DB passwords, the JWT key,
+#   SEAFILE_HOSTNAME, TRAEFIK_HOSTNAME, TRAEFIK_ACME_EMAIL,
+#   TRAEFIK_BASIC_AUTH.
 
-Create networks for your services before deploying the configuration using the commands:
-
-`docker network create traefik-network`
-
-`docker network create seafile-network`
-
-Deploy Seafile using Docker Compose:
-
-`docker compose -f seafile-traefik-letsencrypt-docker-compose.yml -p seafile up -d`
-
-## Fixing CSRF Verification Error (403 Forbidden) in Seafile
-
-If you encounter a `403 Forbidden - CSRF verification failed` error when logging into Seafile, follow these steps to add your domain to the trusted origins and set the correct URL for the file server.
-
-Run the following command, replacing `https://seafile.heyvaldemar.net` with your Seafile domain:
-
-```
-export SEAFILE_DOMAIN="https://seafile.heyvaldemar.net" \
-&& SEAFILE_CONTAINER=$(docker ps -aqf "name=seafile-seafile") \
-&& docker exec -it $SEAFILE_CONTAINER /bin/sh -c "sed -i 's|SERVICE_URL = .*|SERVICE_URL = \"$SEAFILE_DOMAIN\"|' /opt/seafile/conf/seahub_settings.py" \
-&& docker exec -it $SEAFILE_CONTAINER /bin/sh -c "sed -i '/^CSRF_TRUSTED_ORIGINS/d' /opt/seafile/conf/seahub_settings.py && echo \"CSRF_TRUSTED_ORIGINS = ['$SEAFILE_DOMAIN']\" >> /opt/seafile/conf/seahub_settings.py" \
-&& docker exec -it $SEAFILE_CONTAINER /bin/sh -c "sed -i '/^FILE_SERVER_ROOT/d' /opt/seafile/conf/seahub_settings.py && echo \"FILE_SERVER_ROOT = '$SEAFILE_DOMAIN/seafhttp'\" >> /opt/seafile/conf/seahub_settings.py" \
-&& docker restart $SEAFILE_CONTAINER
+# 4. Deploy
+docker compose -f seafile-traefik-letsencrypt-docker-compose.yml -p seafile up -d
 ```
 
-This command will:
+First start installs the databases — give it a few minutes, then log in at `https://${SEAFILE_HOSTNAME}` with the admin credentials from `.env`. Desktop and mobile clients use the same URL.
 
-1. Set `SERVICE_URL` to your domain (e.g., `https://seafile.heyvaldemar.net`).
-2. Add the domain to `CSRF_TRUSTED_ORIGINS` to allow trusted requests.
-3. Set `FILE_SERVER_ROOT` to your domain’s file server URL.
-4. Restart the Seafile container to apply changes.
+### What success looks like
 
-After running the command, try logging in again.
+```bash
+docker compose -f seafile-traefik-letsencrypt-docker-compose.yml -p seafile ps
+curl -fskL -o /dev/null -w "%{http_code}\n" "https://${SEAFILE_HOSTNAME}/accounts/login/"   # 200
+curl -fsk "https://${SEAFILE_HOSTNAME}/seafhttp/protocol-version"   # {"version": 2}
+```
 
-## Backups
+### Common first-deploy issues
 
-The `backups` container in the configuration is responsible for the following:
+- **Cert issuance fails.** DNS hasn't propagated or port 80 isn't reachable from the internet.
+- **502 in the first minutes.** Database installation is still running; watch `docker logs seafile-seafile-1` until "Seahub is started".
+- **`docker compose up` fails with `set in .env`.** A required variable is empty — Seafile 12+ requires the JWT key; the error names what's missing.
+- **Networks not found.** Step 2 was skipped.
 
-1. **Database Backup**: Creates compressed backups of the MariaDB database using pg_dump.
-Customizable backup path, filename pattern, and schedule through variables like `MARIADB_BACKUPS_PATH`, `MARIADB_BACKUP_NAME`, and `BACKUP_INTERVAL`.
+## Supply chain trust
 
-2. **Application Data Backup**: Compresses and stores backups of the application data on the same schedule. Controlled via variables such as `DATA_BACKUPS_PATH`, `DATA_BACKUP_NAME`, and `BACKUP_INTERVAL`.
+Four images — [`traefik`](https://hub.docker.com/_/traefik), [`seafileltd/seafile-mc`](https://hub.docker.com/r/seafileltd/seafile-mc), [`mariadb`](https://hub.docker.com/_/mariadb), [`redis`](https://hub.docker.com/_/redis) — pinned to `tag@sha256:<digest>` as interpolation defaults in the compose `x-images` block. `git pull` alone delivers the tested combination; an `*_IMAGE_TAG` variable in `.env` overrides deliberately.
 
-3. **Backup Pruning**: Periodically removes backups exceeding a specified age to manage storage. Customizable pruning schedule and age threshold with `MARIADB_BACKUP_PRUNE_DAYS` and `DATA_BACKUP_PRUNE_DAYS`.
+The weekly `check-pin-freshness` CI job re-resolves each pin against its registry and compares the pinned Seafile and Traefik versions against the latest upstream releases. GitHub Actions are pinned by commit SHA; Dependabot keeps those fresh.
 
-By utilizing this container, consistent and automated backups of the essential components of your instance are ensured. Moreover, efficient management of backup storage and tailored backup routines can be achieved through easy and flexible configuration using environment variables.
+## Production checklist
 
-## seafile-restore-database.sh Description
+- [ ] **Strong secrets** — both DB passwords, the admin password, and the JWT key; regenerate the Traefik dashboard hash.
+- [ ] **Host-mount the backup volumes** for disaster recovery — file data and the databases are only useful restored together.
+- [ ] **Upgrade one major at a time** — Seafile migrates its schema per major; back up before each step.
+- [ ] **Verify Let's Encrypt cert issuance** in the Traefik logs on first start.
 
-This script facilitates the restoration of a database backup:
+## Backups and restore
 
-1. **Identify Containers**: It first identifies the service and backups containers by name, finding the appropriate container IDs.
+The `backups` container dumps Seafile's three databases (`ccnet_db`, `seafile_db`, `seahub_db`) and tars `/shared` on a schedule (defaults: 30-minute warm-up, 24-hour interval, 7-day retention). Restore with the interactive scripts (`chmod +x *.sh` once): `./seafile-restore-database.sh`, then `./seafile-restore-application-data.sh`.
 
-2. **List Backups**: Displays all available database backups located at the specified backup path.
+## Testing
 
-3. **Select Backup**: Prompts the user to copy and paste the desired backup name from the list to restore the database.
+The [Deployment Verification](https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/actions/workflows/deployment-verification.yml?query=branch%3Amain) workflow runs on every push, pull request, and every Monday at 06:00 UTC: shellcheck + actionlint, Trivy scans of all four pinned images, the weekly freshness check, and a deploy-and-test job that boots the stack with ephemeral credentials and requires the login page and the `/seafhttp` endpoint through Traefik.
 
-4. **Stop Service**: Temporarily stops the service to ensure data consistency during restoration.
+## Security Notes
 
-5. **Restore Database**: Executes a sequence of commands to drop the current database, create a new one, and restore it from the selected compressed backup file.
+- Credentials are read from `.env` at deploy time; `.env` is gitignored and compose fails fast on missing required variables.
+- **Pre-rotation advisory.** Releases before v1.0.0 (2026-09-01) shipped a tracked `.env` with generated-looking passwords. Rotate them if your deployment reused them.
+- MariaDB and Redis listen only on the internal network.
 
-6. **Start Service**: Restarts the service after the restoration is completed.
+---
 
-To make the `seafile-restore-database.shh` script executable, run the following command:
-
-`chmod +x seafile-restore-database.sh`
-
-Usage of this script ensures a controlled and guided process to restore the database from an existing backup.
-
-## seafile-restore-application-data.sh Description
-
-This script is designed to restore the application data:
-
-1. **Identify Containers**: Similarly to the database restore script, it identifies the service and backups containers by name.
-
-2. **List Application Data Backups**: Displays all available application data backups at the specified backup path.
-
-3. **Select Backup**: Asks the user to copy and paste the desired backup name for application data restoration.
-
-4. **Stop Service**: Stops the service to prevent any conflicts during the restore process.
-
-5. **Restore Application Data**: Removes the current application data and then extracts the selected backup to the appropriate application data path.
-
-6. **Start Service**: Restarts the service after the application data has been successfully restored.
-
-To make the `seafile-restore-application-data.sh` script executable, run the following command:
-
-`chmod +x seafile-restore-application-data.sh`
-
-By utilizing this script, you can efficiently restore application data from an existing backup while ensuring proper coordination with the running service.
-
-## Author
-
-hey everyone,
-
-💾 I’ve been in the IT game for over 20 years, cutting my teeth with some big names like [IBM](https://www.linkedin.com/in/heyvaldemar/), [Thales](https://www.linkedin.com/in/heyvaldemar/), and [Amazon](https://www.linkedin.com/in/heyvaldemar/). These days, I wear the hat of a DevOps Consultant and Team Lead, but what really gets me going is Docker and container technology - I’m kind of obsessed!
-
-💛 I have my own IT [blog](https://www.heyvaldemar.com/), where I’ve built a [community](https://discord.gg/AJQGCCBcqf) of DevOps enthusiasts who share my love for all things Docker, containers, and IT technologies in general. And to make sure everyone can jump on this awesome DevOps train, I write super detailed guides (seriously, they’re foolproof!) that help even newbies deploy and manage complex IT solutions.
-
-🚀 My dream is to empower every single person in the DevOps community to squeeze every last drop of potential out of Docker and container tech.
-
-🐳 As a [Docker Captain](https://www.docker.com/captains/vladimir-mikhalev/), I’m stoked to share my knowledge, experiences, and a good dose of passion for the tech. My aim is to encourage learning, innovation, and growth, and to inspire the next generation of IT whizz-kids to push Docker and container tech to its limits.
-
-Let’s do this together!
-
-## My 2D Portfolio
-
-🕹️ Click into [sre.gg](https://www.sre.gg/) — my virtual space is a 2D pixel-art portfolio inviting you to interact with elements that encapsulate the milestones of my DevOps career.
-
-## My Courses
-
-🎓 Dive into my [comprehensive IT courses](https://www.heyvaldemar.com/courses/) designed for enthusiasts and professionals alike. Whether you're looking to master Docker, conquer Kubernetes, or advance your DevOps skills, my courses provide a structured pathway to enhancing your technical prowess.
-
-🔑 [Each course](https://www.udemy.com/user/heyvaldemar/) is built from the ground up with real-world scenarios in mind, ensuring that you gain practical knowledge and hands-on experience. From beginners to seasoned professionals, there's something here for everyone to elevate their IT skills.
-
-## My Services
-
-💼 Take a look at my [service catalog](https://www.heyvaldemar.com/services/) and find out how we can make your technological life better. Whether it's increasing the efficiency of your IT infrastructure, advancing your career, or expanding your technological horizons — I'm here to help you achieve your goals. From DevOps transformations to building gaming computers — let's make your technology unparalleled!
-
-## Patreon Exclusives
-
-🏆 Join my [Patreon](https://www.patreon.com/heyvaldemar) and dive deep into the world of Docker and DevOps with exclusive content tailored for IT enthusiasts and professionals. As your experienced guide, I offer a range of membership tiers designed to suit everyone from newbies to IT experts.
-
-## My Recommendations
-
-📕 Check out my collection of [essential DevOps books](https://kit.co/heyvaldemar/essential-devops-books)\
-🖥️ Check out my [studio streaming and recording kit](https://kit.co/heyvaldemar/my-studio-streaming-and-recording-kit)\
-📡 Check out my [streaming starter kit](https://kit.co/heyvaldemar/streaming-starter-kit)
-
-## Follow Me
-
-🎬 [YouTube](https://www.youtube.com/channel/UCf85kQ0u1sYTTTyKVpxrlyQ?sub_confirmation=1)\
-🐦 [X / Twitter](https://twitter.com/heyvaldemar)\
-🎨 [Instagram](https://www.instagram.com/heyvaldemar/)\
-🐘 [Mastodon](https://mastodon.social/@heyvaldemar)\
-🧵 [Threads](https://www.threads.net/@heyvaldemar)\
-🎸 [Facebook](https://www.facebook.com/heyvaldemarFB/)\
-🧊 [Bluesky](https://bsky.app/profile/heyvaldemar.bsky.social)\
-🎥 [TikTok](https://www.tiktok.com/@heyvaldemar)\
-💻 [LinkedIn](https://www.linkedin.com/in/heyvaldemar/)\
-📣 [daily.dev Squad](https://app.daily.dev/squads/devopscompass)\
-🧩 [LeetCode](https://leetcode.com/u/heyvaldemar/)\
-🐈 [GitHub](https://github.com/heyvaldemar)
-
-## Community of IT Experts
-
-👾 [Discord](https://discord.gg/AJQGCCBcqf)
-
-## Refill My Coffee Supplies
-
-💖 [PayPal](https://www.paypal.com/paypalme/heyvaldemarCOM)\
-🏆 [Patreon](https://www.patreon.com/heyvaldemar)\
-💎 [GitHub](https://github.com/sponsors/heyvaldemar)\
-🥤 [BuyMeaCoffee](https://www.buymeacoffee.com/heyvaldemar)\
-🍪 [Ko-fi](https://ko-fi.com/heyvaldemar)
-
-🌟 **Bitcoin (BTC):** bc1q2fq0k2lvdythdrj4ep20metjwnjuf7wccpckxc\
-🔹 **Ethereum (ETH):** 0x76C936F9366Fad39769CA5285b0Af1d975adacB8\
-🪙 **Binance Coin (BNB):** bnb1xnn6gg63lr2dgufngfr0lkq39kz8qltjt2v2g6\
-💠 **Litecoin (LTC):** LMGrhx8Jsx73h1pWY9FE8GB46nBytjvz8g
+## About the maintainer
 
 <div align="center">
 
-### Show some 💜 by starring some of the [repositories](https://github.com/heyValdemar?tab=repositories)!
+**Maintained by [Vladimir Mikhalev](https://github.com/heyvaldemar)** — Docker Captain · IBM Champion · AWS Community Builder
 
-![octocat](https://user-images.githubusercontent.com/10498744/210113490-e2fad07f-4488-4da8-a656-b9abbdd8cb26.gif)
+[YouTube](https://www.youtube.com/channel/UCf85kQ0u1sYTTTyKVpxrlyQ?sub_confirmation=1) · [Blog](https://heyvaldemar.com) · [LinkedIn](https://www.linkedin.com/in/heyvaldemar/)
 
 </div>
-
-![footer](https://user-images.githubusercontent.com/10498744/210157572-1fca0242-8af2-46a6-bfa3-666ffd40ebde.svg)
