@@ -29,6 +29,16 @@ volumes:
 services:
   mariadb:
     image: *mariadb-image
+    # Resource limits as .env-overridable defaults (e.g. SEAFILE_MARIADB_MEMORY_LIMIT=2g);
+    # the override survives every git pull.
+    deploy:
+      resources:
+        limits:
+          memory: ${SEAFILE_MARIADB_MEMORY_LIMIT:-1g}
+          cpus: "${SEAFILE_MARIADB_CPU_LIMIT:-1.0}"
+        reservations:
+          memory: ${SEAFILE_MARIADB_MEMORY_RESERVATION:-128m}
+          cpus: "${SEAFILE_MARIADB_CPU_RESERVATION:-0.25}"
     volumes:
       - mariadb-data:/var/lib/mysql
     environment:
@@ -48,6 +58,16 @@ services:
   redis:
     # Seafile 13 moved its cache from memcached to Redis.
     image: *redis-image
+    # Resource limits as .env-overridable defaults (e.g. SEAFILE_REDIS_MEMORY_LIMIT=2g);
+    # the override survives every git pull.
+    deploy:
+      resources:
+        limits:
+          memory: ${SEAFILE_REDIS_MEMORY_LIMIT:-256m}
+          cpus: "${SEAFILE_REDIS_CPU_LIMIT:-0.5}"
+        reservations:
+          memory: ${SEAFILE_REDIS_MEMORY_RESERVATION:-32m}
+          cpus: "${SEAFILE_REDIS_CPU_RESERVATION:-0.1}"
     volumes:
       - redis-data:/data
     networks:
@@ -62,6 +82,16 @@ services:
 
   seafile:
     image: *seafile-image
+    # Resource limits as .env-overridable defaults (e.g. SEAFILE_MEMORY_LIMIT=2g);
+    # the override survives every git pull.
+    deploy:
+      resources:
+        limits:
+          memory: ${SEAFILE_MEMORY_LIMIT:-1g}
+          cpus: "${SEAFILE_CPU_LIMIT:-1.0}"
+        reservations:
+          memory: ${SEAFILE_MEMORY_RESERVATION:-128m}
+          cpus: "${SEAFILE_CPU_RESERVATION:-0.25}"
     volumes:
       - seafile-data:${DATA_PATH:-/shared}
     # Seafile 12+ changed the container's environment contract: the
@@ -173,6 +203,16 @@ services:
 
   traefik:
     image: *traefik-image
+    # Resource limits as .env-overridable defaults (e.g. TRAEFIK_MEMORY_LIMIT=2g);
+    # the override survives every git pull.
+    deploy:
+      resources:
+        limits:
+          memory: ${TRAEFIK_MEMORY_LIMIT:-256m}
+          cpus: "${TRAEFIK_CPU_LIMIT:-0.5}"
+        reservations:
+          memory: ${TRAEFIK_MEMORY_RESERVATION:-64m}
+          cpus: "${TRAEFIK_CPU_RESERVATION:-0.1}"
     command:
       # Set the log level (DEBUG, INFO, WARN, ERROR)
       - "--log.level=${TRAEFIK_LOG_LEVEL:-WARN}"
@@ -245,6 +285,16 @@ services:
 
   backups:
     image: *mariadb-image
+    # Resource limits as .env-overridable defaults (e.g. SEAFILE_BACKUPS_MEMORY_LIMIT=2g);
+    # the override survives every git pull.
+    deploy:
+      resources:
+        limits:
+          memory: ${SEAFILE_BACKUPS_MEMORY_LIMIT:-256m}
+          cpus: "${SEAFILE_BACKUPS_CPU_LIMIT:-0.5}"
+        reservations:
+          memory: ${SEAFILE_BACKUPS_MEMORY_RESERVATION:-32m}
+          cpus: "${SEAFILE_BACKUPS_CPU_RESERVATION:-0.1}"
     # `$$VAR` / `$$(...)` escapes are required so docker compose does NOT
     # interpolate these at config time — they are resolved by the container
     # shell at runtime from the `environment:` block below. The dump names
