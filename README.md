@@ -3,7 +3,7 @@
 [![Deployment Verification](https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/actions/workflows/deployment-verification.yml/badge.svg?branch=main)](https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/actions/workflows/deployment-verification.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-This repository deploys **Seafile Community Edition 13** (fast, reliable file sync and share) behind **Traefik** with automatic **Let's Encrypt TLS**, backed by **MariaDB 11.4 LTS** and **Redis**, with scheduled **backups** (all three Seafile databases + file data) and companion **restore scripts**.
+This repository deploys Seafile Community Edition 13 (fast, reliable file sync and share) behind Traefik with automatic Let's Encrypt TLS, backed by MariaDB 11.4 LTS and Redis, with scheduled backups (all three Seafile databases + file data) and companion restore scripts.
 
 ## Getting started
 
@@ -86,7 +86,7 @@ chmod +x tests/e2e-backup-restore.sh
 
 It stops the database container briefly to prove failure detection: run it on a staging copy, not on production.
 
-## Security Notes
+## Security notes
 
 - Credentials are read from `.env` at deploy time; `.env` is gitignored and compose fails fast on missing required variables.
 - **Pre-rotation advisory.** Releases before v1.0.0 (2026-09-01) shipped a tracked `.env` with generated-looking passwords. Rotate them if your deployment reused them.
