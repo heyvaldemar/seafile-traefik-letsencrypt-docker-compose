@@ -48,7 +48,7 @@ curl -fsk "https://${SEAFILE_HOSTNAME}/seafhttp/protocol-version"   # {"version"
 
 Four images — [`traefik`](https://hub.docker.com/_/traefik), [`seafileltd/seafile-mc`](https://hub.docker.com/r/seafileltd/seafile-mc), [`mariadb`](https://hub.docker.com/_/mariadb), [`redis`](https://hub.docker.com/_/redis) — pinned to `tag@sha256:<digest>` as interpolation defaults in the compose `x-images` block. `git pull` alone delivers the tested combination; an `*_IMAGE_TAG` variable in `.env` overrides deliberately.
 
-The weekly `check-pin-freshness` CI job re-resolves each pin against its registry and compares the pinned Seafile and Traefik versions against the latest upstream releases. GitHub Actions are pinned by commit SHA; Dependabot keeps those fresh.
+The daily `check-pin-freshness` CI job re-resolves each pin against its registry and compares the pinned Seafile and Traefik versions against the latest upstream releases. GitHub Actions are pinned by commit SHA; Dependabot keeps those fresh.
 
 ## Production checklist
 
@@ -67,7 +67,7 @@ Every service carries memory and CPU limits plus reservations as compose-level d
 
 ## Testing
 
-The [Deployment Verification](https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/actions/workflows/deployment-verification.yml?query=branch%3Amain) workflow runs on every push, pull request, and every Monday at 06:00 UTC: shellcheck + actionlint, Trivy scans of all four pinned images, the weekly freshness check, and a deploy-and-test job that boots the stack with ephemeral credentials and requires the login page and the `/seafhttp` endpoint through Traefik.
+The [Deployment Verification](https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/actions/workflows/deployment-verification.yml?query=branch%3Amain) workflow runs on every push, pull request, and every day at 06:00 UTC: shellcheck + actionlint, Trivy scans of all four pinned images, the weekly freshness check, and a deploy-and-test job that boots the stack with ephemeral credentials and requires the login page and the `/seafhttp` endpoint through Traefik.
 
 ### Backup and restore, proven
 
