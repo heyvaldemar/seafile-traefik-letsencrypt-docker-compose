@@ -65,7 +65,7 @@ _(no unreleased changes yet)_
 
 ### Added
 
-- **`tests/e2e-backup-restore.sh`** — seven end-to-end scenarios against
+- **`tests/e2e-backup-restore.sh`**: seven end-to-end scenarios against
   the live stack, run by CI on every push and by you locally: the
   required-variable guard fires, a backup is produced, it is a readable
   archive with real dump content (and a readable data `tar.gz` where the
@@ -108,12 +108,12 @@ v1.2.0.
   bundled nginx. The template is rebuilt for the new contract: the
   memcached service is replaced by Redis, all three Traefik routers
   target the bundled nginx on port 80 (the old `/seafhttp` prefix
-  stripping is gone — nginx expects the prefix), and `.env` gains
+  stripping is gone: nginx expects the prefix), and `.env` gains
   `SEAFILE_JWT_PRIVATE_KEY`. ❗ Existing Seafile 11 deployments must
   upgrade majors one at a time (11 → 12 → 13) per the Seafile manual
-  before adopting this compose — see the release notes.
+  before adopting this compose: see the release notes.
 - **MariaDB 11.4 LTS, Traefik 3.7** (3.2's Docker client cannot talk to
-  Docker Engine 29), Redis 7.4 — all pinned by `tag@sha256:digest` in
+  Docker Engine 29), Redis 7.4, all pinned by `tag@sha256:digest` in
   the compose `x-images` block.
 
 ### Fixed
