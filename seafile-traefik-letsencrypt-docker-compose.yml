@@ -6,10 +6,10 @@
 # CI (Trivy scans, check-pin-freshness, the ephemeral test .env) reads
 # the pins from these lines — this block is the single source of truth.
 x-images:
-  traefik: &traefik-image ${TRAEFIK_IMAGE_TAG:-traefik:3.7@sha256:9c2a54d87f76f5c2f5f2682c68394af92fb12c0a2686798d6462a3f84bd78eaf}
-  mariadb: &mariadb-image ${SEAFILE_MARIADB_IMAGE_TAG:-mariadb:11.4@sha256:611a2fcc5fa7c6ceb8644c6f74b25ede004ff6c3a6b38c8f8c23d3bbf6c26430}
-  redis: &redis-image ${SEAFILE_REDIS_IMAGE_TAG:-redis:7.4@sha256:71da9275c5f3fcb97d0fa0c8c5b36cc995327265420f17a04bfd544f458059f7}
-  seafile: &seafile-image ${SEAFILE_IMAGE_TAG:-seafileltd/seafile-mc:13.0.25@sha256:90c1aaa08731116750cd7ce16cbc6afe0c26006433002d3c7215a5f4254ec244}
+  traefik: &traefik-image ${TRAEFIK_IMAGE_TAG:-traefik:${TRAEFIK_IMAGE_VERSION:-3.7@sha256:9c2a54d87f76f5c2f5f2682c68394af92fb12c0a2686798d6462a3f84bd78eaf}}
+  mariadb: &mariadb-image ${SEAFILE_MARIADB_IMAGE_TAG:-mariadb:${SEAFILE_MARIADB_IMAGE_VERSION:-11.4@sha256:611a2fcc5fa7c6ceb8644c6f74b25ede004ff6c3a6b38c8f8c23d3bbf6c26430}}
+  redis: &redis-image ${SEAFILE_REDIS_IMAGE_TAG:-redis:${SEAFILE_REDIS_IMAGE_VERSION:-7.4@sha256:71da9275c5f3fcb97d0fa0c8c5b36cc995327265420f17a04bfd544f458059f7}}
+  seafile: &seafile-image ${SEAFILE_IMAGE_TAG:-seafileltd/seafile-mc:${SEAFILE_IMAGE_VERSION:-13.0.25@sha256:90c1aaa08731116750cd7ce16cbc6afe0c26006433002d3c7215a5f4254ec244}}
 
 networks:
   seafile-network:
