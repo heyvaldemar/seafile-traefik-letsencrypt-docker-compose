@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_(no unreleased changes yet)_
+
+## [1.8.5] - 2026-09-18
+
 ### Changed
 
 - **`seafileltd/seafile-mc:13.0.25` moved to `seafileltd/seafile-mc:13.0.28`.** The freshness check reported the lag; the deploy job booted the stack on the new image before this landed.
@@ -219,7 +223,8 @@ v1.2.0.
   and the `/seafhttp` file-server endpoint through Traefik.
 - `.env.example`; `.env` gitignored.
 
-[Unreleased]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.8.4...HEAD
+[Unreleased]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.8.5...HEAD
+[1.8.5]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.8.4...v1.8.5
 [1.8.4]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.8.3...v1.8.4
 [1.8.3]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.8.2...v1.8.3
 [1.8.1]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.8.0...v1.8.1
