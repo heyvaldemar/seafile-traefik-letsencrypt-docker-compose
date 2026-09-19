@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_(no unreleased changes yet)_
+
+## [1.8.6] - 2026-09-19
+
 ### Security
 
 - **`redis:7.4` was rebuilt upstream**; the pin moved from `sha256:71da9275c5f3…` to `sha256:c6eabf748fc7…`. Same version, same tag, a rebuilt base image — the usual shape of a security fix in a base layer.
@@ -225,7 +229,8 @@ v1.2.0.
   and the `/seafhttp` file-server endpoint through Traefik.
 - `.env.example`; `.env` gitignored.
 
-[Unreleased]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.8.5...HEAD
+[Unreleased]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.8.6...HEAD
+[1.8.6]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.8.5...v1.8.6
 [1.8.5]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.8.4...v1.8.5
 [1.8.4]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.8.3...v1.8.4
 [1.8.3]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.8.2...v1.8.3
