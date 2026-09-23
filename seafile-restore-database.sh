@@ -1,44 +1,62 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# seafile-restore-database.sh [backup-file-name]
+#
+# Replaces the Seafile database with one of the dumps the backups service wrote.
+#
+#   ./seafile-restore-database.sh               list and ask
+#   ./seafile-restore-database.sh <file-name>   restore that one
+#
+# EVERY PATH, NAME AND CREDENTIAL COMES FROM THE RUNNING BACKUPS CONTAINER.
+# The previous version signed in as the Seafile user with the root password,
+# which fails, and had it succeeded it would have dropped seafiledb, a name
+# that does not exist, and left seafile_db in place under the restored dump.
+# The backup loop reads its own environment, so this reads the same one, and
+# the two cannot disagree.
+#
+# CI runs this exact file against a marker written after the backup it
+# restores, and requires the marker to be gone.
+#
+# Set COMPOSE_PROJECT_NAME if the stack was started with a -p other than seafile.
+set -Eeuo pipefail
 
-# seafile-restore-all-databases.sh Description
-# This script facilitates the restoration of all databases from a backup.
+PROJECT="${COMPOSE_PROJECT_NAME:-seafile}"
+APP_SERVICE="seafile"
 
-SEAFILE_CONTAINER=$(docker ps -aqf "name=seafile-seafile")
-SEAFILE_BACKUPS_CONTAINER=$(docker ps -aqf "name=seafile-backups")
-SEAFILE_DB_USER="root"
-MARIADB_PASSWORD=$(docker exec "$SEAFILE_BACKUPS_CONTAINER" printenv MARIADB_ROOT_PASSWORD)
-BACKUP_PATH="/srv/seafile-mariadb/backups/"
+cid() {  # the container of one compose service in this project
+  docker ps -aq --filter "label=com.docker.compose.project=$PROJECT" \
+    --filter "label=com.docker.compose.service=$1" | head -n 1
+}
+APP="$(cid "$APP_SERVICE")"; BKP="$(cid backups)"
+[ -n "$BKP" ] || { echo "error: no backups container in compose project '$PROJECT' (set COMPOSE_PROJECT_NAME)" >&2; exit 1; }
+[ -n "$APP" ] || { echo "error: no $APP_SERVICE container in compose project '$PROJECT'" >&2; exit 1; }
+[ "$(docker inspect -f '{{.State.Running}}' "$BKP")" = true ] || { echo "error: the backups container is not running" >&2; exit 1; }
 
-echo "--> All available database backups:"
+env_of() { docker exec "$BKP" printenv "$1"; }
+DIR="$(env_of MARIADB_BACKUPS_PATH)"; NAME="$(env_of MARIADB_BACKUP_NAME)"; DB_PASS="$(env_of MARIADB_ROOT_PASSWORD)"
+DATABASES="ccnet_db seafile_db seahub_db"
 
-# Display all backups in the backup path
-for entry in $(docker container exec "$SEAFILE_BACKUPS_CONTAINER" sh -c "ls $BACKUP_PATH")
-do
-  echo "$entry"
-done
+SELECTED="${1:-}"
+if [ -z "$SELECTED" ]; then
+  echo "Database backups in $DIR:"
+  docker exec "$BKP" sh -c "ls -1 '$DIR' | grep -E '^$NAME-.*\\.gz\$'" || { echo "  none found" >&2; exit 1; }
+  read -r -p "File name to restore: " SELECTED
+fi
+case "$SELECTED" in ""|*/*) echo "error: give a file name from the list, not a path" >&2; exit 1 ;; esac
+docker exec "$BKP" gunzip -t "$DIR/$SELECTED" >/dev/null \
+  || { echo "error: $DIR/$SELECTED is missing or does not open; nothing was changed" >&2; exit 1; }
 
-# Prompt user to select a backup
-echo "--> Copy and paste the backup name from the list above to restore all databases and press [ENTER]"
-echo "--> Example: seafile-mariadb-backup-YYYY-MM-DD_hh-mm.gz"
-echo -n "--> "
-
-read -r SELECTED_DATABASE_BACKUP
-
-# Remove any surrounding quotes from the selected backup name
-SELECTED_DATABASE_BACKUP=$(echo "$SELECTED_DATABASE_BACKUP" | tr -d "'\"")
-
-echo "--> $SELECTED_DATABASE_BACKUP was selected"
-
-# Stop the service container
-echo "--> Stopping service..."
-docker stop "$SEAFILE_CONTAINER"
-
-# Restore all databases
-echo "--> Restoring all databases..."
-docker exec "$SEAFILE_BACKUPS_CONTAINER" sh -c "mariadb -h mariadb -u $SEAFILE_DB_USER --password=$MARIADB_PASSWORD -e 'DROP DATABASE IF EXISTS seafiledb; DROP DATABASE IF EXISTS ccnet_db; DROP DATABASE IF EXISTS seahub_db;' \
-&& gunzip -c ${BACKUP_PATH}${SELECTED_DATABASE_BACKUP} | mariadb -h mariadb -u $SEAFILE_DB_USER --password=$MARIADB_PASSWORD"
-echo "--> All databases have been restored."
-
-# Start the service container
-echo "--> Starting service..."
-docker start "$SEAFILE_CONTAINER"
+echo "Stopping $APP_SERVICE so nothing writes while the database is replaced"
+docker stop "$APP" >/dev/null
+restart() { docker start "$APP" >/dev/null && echo "Started $APP_SERVICE"; }
+trap 'restart' EXIT
+echo "Restoring $SELECTED"
+# The dump was written with --databases, so it creates each database and
+# switches into it itself; root is the account the backups container holds
+# that may drop and create all three.
+if ! docker exec -e MYSQL_PWD="$DB_PASS" "$BKP" sh -c "(set -o pipefail) 2>/dev/null && set -o pipefail; set -eu
+    mariadb -h mariadb -u root -e 'DROP DATABASE IF EXISTS \`ccnet_db\`; DROP DATABASE IF EXISTS \`seafile_db\`; DROP DATABASE IF EXISTS \`seahub_db\`;'
+    gunzip -c '$DIR/$SELECTED' | mariadb -h mariadb -u root"; then
+  echo "error: the restore failed part-way. The database may now be empty: restore another backup before using Seafile." >&2
+  exit 1
+fi
+echo "Restored $SELECTED into $DATABASES"

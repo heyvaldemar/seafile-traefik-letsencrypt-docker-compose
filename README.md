@@ -65,7 +65,7 @@ The daily `check-pin-freshness` CI job re-resolves each pin against its registry
 
 ## Backups and restore
 
-The `backups` container dumps Seafile's three databases (`ccnet_db`, `seafile_db`, `seahub_db`) and tars `/shared` on a schedule (defaults: 30-minute warm-up, 24-hour interval, 7-day retention). Restore with the interactive scripts (`chmod +x *.sh` once): `./seafile-restore-database.sh`, then `./seafile-restore-application-data.sh`.
+The `backups` container dumps Seafile's three databases (`ccnet_db`, `seafile_db`, `seahub_db`) and tars `/shared` on a schedule (defaults: 30-minute warm-up, 24-hour interval, 7-day retention). Restore with the interactive scripts (`chmod +x *.sh` once): `./seafile-restore-database.sh`, then `./seafile-restore-application-data.sh`. Each lists the backups and asks, or takes a file name as its argument; both read every path and credential from the running backups container, and CI runs both on every push.
 
 ## Resource limits
 
