@@ -1,6 +1,7 @@
 # Seafile + Traefik + Let's Encrypt on Docker Compose
 
 [![Deployment Verification](https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/actions/workflows/deployment-verification.yml/badge.svg?branch=main)](https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/actions/workflows/deployment-verification.yml)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14881/badge)](https://www.bestpractices.dev/projects/14881)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 This repository deploys Seafile Community Edition 13 (fast, reliable file sync and share) behind Traefik with automatic Let's Encrypt TLS, backed by MariaDB 11.4 LTS and Redis, with scheduled backups (all three Seafile databases + file data) and companion restore scripts.
