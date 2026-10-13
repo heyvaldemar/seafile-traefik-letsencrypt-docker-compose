@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **CI fails on an anonymous volume.** A `VOLUME` an image declares and no mount covers becomes an anonymous volume: never backed up, and replaced by an empty one on `down`/`up`. The deployment verification now inspects every container it starts and fails on one, unless `.github/anonymous-volumes` lists it with the reason. GLPI's data lived in exactly such a volume from 2026-08-31 to 2026-10-11.
 
+### Changed
+
+- The template stays on Seafile 13.0 for now. 14.0.9, the first non-testing 14.0 image, was published on 13 October 2026, and Seafile's manual had upgrade notes up to 13.0 only, so there was nothing to check a 13 to 14 move against: the environment contract, MariaDB, Redis, the bundled web server this template routes to. The freshness check now compares the pin with the 13.0 line and reports a newer line as a notice. A prepared branch, `bump/14.0.9`, waits for the upgrade notes and a green deploy job.
+
 ## [1.9.4] - 2026-10-09
 
 ### Security
