@@ -87,12 +87,26 @@ jobs:
           pin="$(grep -m1 -oE '\$\{SEAFILE_IMAGE_TAG:-.*' seafile-traefik-letsencrypt-docker-compose.yml | sed -E -e ':a' -e 's/\$\{[A-Z0-9_]+:-([^{}]*)\}/\1/' -e 'ta')"
           ref="${pin%%@*}"
           pinned_version="${ref##*:}"
+          # HELD ON THE 13.0 LINE. 14.0.9 became the first non-testing 14.0
+          # image on 2026-10-13, and Seafile's manual had upgrade notes up to
+          # 13.0.x only: no 13 -> 14 path to check against this template's
+          # environment contract, database and cache. A major moves here when
+          # its upgrade notes exist and a prepared branch has passed this
+          # repository's deploy job (bump/14.0.9 is prepared). Until then the
+          # newer line is a notice, and only the held line can be behind.
+          held_line="13.0"
           tok="$(curl -fsSL --retry 3 'https://auth.docker.io/token?service=registry.docker.io&scope=repository:seafileltd/seafile-mc:pull' | jq -r .token)"
-          latest="$(curl -fsSL --retry 3 -H "Authorization: Bearer $tok" 'https://registry-1.docker.io/v2/seafileltd/seafile-mc/tags/list?n=50000' | jq -r '.tags[]' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
+          tags="$(curl -fsSL --retry 3 -H "Authorization: Bearer $tok" 'https://registry-1.docker.io/v2/seafileltd/seafile-mc/tags/list?n=50000' | jq -r '.tags[]' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V)"
+          newest="$(printf '%s\n' "$tags" | tail -1)"
+          latest="$(printf '%s\n' "$tags" | grep -F "${held_line}." | tail -1)"
           if [ -z "$latest" ]; then
-            echo "::error::Could not determine the latest Seafile tag from Docker Hub"
+            echo "::error::Could not determine the latest Seafile ${held_line}.x tag from Docker Hub"
             exit 1
           fi
+          case "$newest" in
+            "${held_line}".*) ;;
+            *) echo "::notice::Seafile ${newest} is published; this template stays on ${held_line} until Seafile's upgrade notes cover the move and the prepared branch passes the deploy job" ;;
+          esac
           # ORDER, NOT INEQUALITY. `!=` calls any difference "behind", including
           # being ahead, and GitHub's releases/latest is the most recently
           # PUBLISHED release rather than the highest version. A project that
