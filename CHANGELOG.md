@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_(no unreleased changes yet)_
+### Changed
+
+- **`seafileltd/seafile-mc:13.0.28` moves to `14.0.9`.** HELD: not merged until Seafile's manual has upgrade notes for 14.0 and they have been checked against this template's environment, MariaDB, Redis and the web server Traefik routes to. The deploy job boots the stack on 14.0.9; that shows a fresh install starts, not that an existing 13.0 deployment upgrades. The freshness check moves its held line to 14.0 with this change.
 
 ## [1.9.5] - 2026-10-13
 

@@ -94,7 +94,7 @@ jobs:
           # its upgrade notes exist and a prepared branch has passed this
           # repository's deploy job (bump/14.0.9 is prepared). Until then the
           # newer line is a notice, and only the held line can be behind.
-          held_line="13.0"
+          held_line="14.0"
           tok="$(curl -fsSL --retry 3 'https://auth.docker.io/token?service=registry.docker.io&scope=repository:seafileltd/seafile-mc:pull' | jq -r .token)"
           tags="$(curl -fsSL --retry 3 -H "Authorization: Bearer $tok" 'https://registry-1.docker.io/v2/seafileltd/seafile-mc/tags/list?n=50000' | jq -r '.tags[]' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V)"
           newest="$(printf '%s\n' "$tags" | tail -1)"
