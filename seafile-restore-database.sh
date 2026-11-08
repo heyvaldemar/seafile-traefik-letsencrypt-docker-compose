@@ -7,6 +7,9 @@
 #   ./seafile-restore-database.sh <file-name>   restore that one
 #
 # EVERY PATH, NAME AND CREDENTIAL COMES FROM THE RUNNING BACKUPS CONTAINER.
+# The password does not even leave it: the client reads MYSQL_PWD, set by the
+# shell inside, because an argument (docker exec -e NAME=value included) is
+# readable by every user on this host for as long as the restore runs.
 # The previous version signed in as the Seafile user with the root password,
 # which fails, and had it succeeded it would have dropped seafiledb, a name
 # that does not exist, and left seafile_db in place under the restored dump.
@@ -32,7 +35,7 @@ APP="$(cid "$APP_SERVICE")"; BKP="$(cid backups)"
 [ "$(docker inspect -f '{{.State.Running}}' "$BKP")" = true ] || { echo "error: the backups container is not running" >&2; exit 1; }
 
 env_of() { docker exec "$BKP" printenv "$1"; }
-DIR="$(env_of MARIADB_BACKUPS_PATH)"; NAME="$(env_of MARIADB_BACKUP_NAME)"; DB_PASS="$(env_of MARIADB_ROOT_PASSWORD)"
+DIR="$(env_of MARIADB_BACKUPS_PATH)"; NAME="$(env_of MARIADB_BACKUP_NAME)"
 DATABASES="ccnet_db seafile_db seahub_db"
 
 SELECTED="${1:-}"
@@ -53,7 +56,8 @@ echo "Restoring $SELECTED"
 # The dump was written with --databases, so it creates each database and
 # switches into it itself; root is the account the backups container holds
 # that may drop and create all three.
-if ! docker exec -e MYSQL_PWD="$DB_PASS" "$BKP" sh -c "(set -o pipefail) 2>/dev/null && set -o pipefail; set -eu
+if ! docker exec "$BKP" sh -c "(set -o pipefail) 2>/dev/null && set -o pipefail; set -eu
+    MYSQL_PWD=\"\$MARIADB_ROOT_PASSWORD\"; export MYSQL_PWD
     mariadb -h mariadb -u root -e 'DROP DATABASE IF EXISTS \`ccnet_db\`; DROP DATABASE IF EXISTS \`seafile_db\`; DROP DATABASE IF EXISTS \`seahub_db\`;'
     gunzip -c '$DIR/$SELECTED' | mariadb -h mariadb -u root"; then
   echo "error: the restore failed part-way. The database may now be empty: restore another backup before using Seafile." >&2
