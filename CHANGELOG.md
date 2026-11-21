@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_(no unreleased changes yet)_
+
+## [1.9.24] - 2026-11-21
+
 ### Security
 
 - **`seafileltd/seafile-mc:13.0.30` was rebuilt upstream**; the pin moved from `sha256:fe1f111e93f8…` to `sha256:92df4680b5cb…`. Same version, same tag, a rebuilt base image — the usual shape of a security fix in a base layer.
@@ -429,7 +433,8 @@ v1.2.0.
   and the `/seafhttp` file-server endpoint through Traefik.
 - `.env.example`; `.env` gitignored.
 
-[Unreleased]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.9.23...HEAD
+[Unreleased]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.9.24...HEAD
+[1.9.24]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.9.23...v1.9.24
 [1.9.23]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.9.22...v1.9.23
 [1.9.22]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.9.21...v1.9.22
 [1.9.21]: https://github.com/heyvaldemar/seafile-traefik-letsencrypt-docker-compose/compare/v1.9.20...v1.9.21
